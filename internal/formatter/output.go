@@ -2,16 +2,19 @@ package formatter
 
 import (
 	"fmt"
-	"lem-in/internal/simulation"
 )
 
-func Print(raw []string, moves [][]simulation.Move) {
-	for _, line := range raw {
+func Print(rawLines []string, moves []string) {
+	// Выводим исходные данные
+	for _, line := range rawLines {
 		fmt.Println(line)
 	}
+
+	// Пустая строка между картой и движением
 	fmt.Println()
 
-	for _, turn := range moves {
-		fmt.Println(simulation.FormatTurn(turn))
+	// Выводим движения муравьев
+	for _, move := range moves {
+		fmt.Println(move)
 	}
 }

@@ -12,26 +12,32 @@ import (
 )
 
 func main() {
+	// Проверка аргументов
 	if len(os.Args) != 2 {
 		fmt.Println("ERROR: invalid data format")
 		return
 	}
 
+	// Парсим файл
 	farm, err := parser.Parse(os.Args[1])
 	if err != nil {
 		fmt.Println("ERROR:", err)
 		return
 	}
 
+	// Строим граф
 	g := graph.Build(farm)
 
-	paths, err := solver.FindAllPaths(g)
+	// Находим пути + распределение муравьёв (передаем farm для порядка комнат)
+	paths, assign, err := solver.FindAllPaths(g, farm, farm.Ants)
 	if err != nil {
 		fmt.Println("ERROR:", err)
 		return
 	}
 
-	moves := simulation.Run(paths, farm.Ants)
+	// Симуляция
+	moves := simulation.Run(paths, assign)
 
+	// Вывод
 	formatter.Print(farm.RawLines, moves)
 }
