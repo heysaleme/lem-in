@@ -25,13 +25,13 @@ func main() {
 
 	g := graph.Build(farm)
 
-	path, err := solver.BFS(g)
+	paths, err := solver.FindAllPaths(g)
 	if err != nil {
 		fmt.Println("ERROR:", err)
 		return
 	}
 
-	moves := simulation.Run(path, farm.Ants)
+	moves := simulation.Run(paths, farm.Ants)
 
 	formatter.Print(farm.RawLines, moves)
 }
