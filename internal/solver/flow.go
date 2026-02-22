@@ -3,7 +3,6 @@ package solver
 import (
 	"errors"
 	"lem-in/internal/graph"
-	"sort"
 )
 
 type Path struct {
@@ -12,23 +11,86 @@ type Path struct {
 }
 
 func FindAllPaths(g *graph.Graph, antCount int) ([]Path, [][]int, error) {
-	allPaths := findAllPaths(g)
-	if len(allPaths) == 0 {
+	// Находим непересекающиеся пути жадным BFS
+	var optimalPaths []Path
+	tempGraph := copyAdjacencyList(g.AdjacencyList)
+
+	for {
+		path := findShortestPathBFS(tempGraph, g.Start, g.End)
+		if path == nil {
+			break
+		}
+
+		optimalPaths = append(optimalPaths, Path{
+			Rooms: path,
+			Len:   len(path) - 1,
+		})
+
+		// Удаляем комнаты найденного пути (кроме start и end), чтобы пути не пересекались
+		for i := 1; i < len(path)-1; i++ {
+			delete(tempGraph, path[i])
+			for room := range tempGraph {
+				tempGraph[room] = removeFromSlice(tempGraph[room], path[i])
+			}
+		}
+	}
+
+	if len(optimalPaths) == 0 {
 		return nil, nil, errors.New("no path found")
 	}
 
-	// Сортируем по длине
-	sort.SliceStable(allPaths, func(i, j int) bool {
-		return len(allPaths[i]) < len(allPaths[j])
-	})
-
-	// Выбираем непересекающиеся оптимальные пути
-	optimalPaths := selectOptimalPathsByTime(allPaths, antCount)
-
-	// Распределяем муравьев (используем новую логику для порядка ID)
+	// Распределяем муравьев
 	distribution := distributeAntsCorrectOrder(optimalPaths, antCount)
 
 	return optimalPaths, distribution, nil
+}
+
+// Вспомогательная функция BFS
+func findShortestPathBFS(adj map[string][]string, start, end string) []string {
+	queue := [][]string{{start}}
+	visited := map[string]bool{start: true}
+
+	for len(queue) > 0 {
+		path := queue[0]
+		queue = queue[1:]
+		current := path[len(path)-1]
+
+		if current == end {
+			return path
+		}
+
+		for _, neighbor := range adj[current] {
+			if !visited[neighbor] {
+				visited[neighbor] = true
+				newPath := append([]string{}, path...)
+				newPath = append(newPath, neighbor)
+				queue = append(queue, newPath)
+			}
+		}
+	}
+	return nil
+}
+
+// Вспомогательные функции для работы с графом
+func copyAdjacencyList(original map[string][]string) map[string][]string {
+	copy := make(map[string][]string)
+	for k, v := range original {
+		newSlice := make([]string, len(v))
+		copy[k] = newSlice
+		for i := range v {
+			newSlice[i] = v[i]
+		}
+	}
+	return copy
+}
+
+func removeFromSlice(slice []string, val string) []string {
+	for i, v := range slice {
+		if v == val {
+			return append(slice[:i], slice[i+1:]...)
+		}
+	}
+	return slice
 }
 
 func findAllPaths(g *graph.Graph) [][]string {
