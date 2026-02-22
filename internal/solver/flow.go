@@ -158,25 +158,38 @@ func generateCombinations(paths [][]string, k int) [][]Path {
 }
 
 func distributeAntsRoundRobin(paths []Path, antCount int) [][]int {
-	distribution := make([][]int, len(paths))
-	for ant := 1; ant <= antCount; ant++ {
-		bestPathIdx := 0
-		// minTime — это время завершения: длина + сколько муравьев уже там
-		minTime := paths[0].Len + len(distribution[0])
-
+	// 1. Сначала просто считаем количество (емкость) для каждого пути
+	counts := make([]int, len(paths))
+	for ant := 0; ant < antCount; ant++ {
+		bestIdx := 0
+		minTime := paths[0].Len + counts[0]
 		for i := 1; i < len(paths); i++ {
-			currentTime := paths[i].Len + len(distribution[i])
-			// Если время одинаковое, выбираем путь, который короче (он обычно раньше в списке)
-			if currentTime < minTime {
-				minTime = currentTime
-				bestPathIdx = i
-			} else if currentTime == minTime {
-				if paths[i].Len < paths[bestPathIdx].Len {
-					bestPathIdx = i
-				}
+			if paths[i].Len+counts[i] < minTime {
+				minTime = paths[i].Len + counts[i]
+				bestIdx = i
 			}
 		}
-		distribution[bestPathIdx] = append(distribution[bestPathIdx], ant)
+		counts[bestIdx]++
+	}
+
+	// 2. Теперь распределяем ID муравьев (1, 2, 3...) по этим путям
+	distribution := make([][]int, len(paths))
+	currentAnt := 1
+
+	// Распределяем "слоями", чтобы ID шли по порядку в каждом ходу
+	for {
+		movedInThisLayer := false
+		for i := 0; i < len(paths); i++ {
+			if counts[i] > 0 {
+				distribution[i] = append(distribution[i], currentAnt)
+				counts[i]--
+				currentAnt++
+				movedInThisLayer = true
+			}
+		}
+		if !movedInThisLayer {
+			break
+		}
 	}
 	return distribution
 }
