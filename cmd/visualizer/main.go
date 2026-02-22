@@ -21,7 +21,6 @@ type model struct {
 	minX, minY, maxX, maxY int
 }
 
-// Теперь Init ничего не запускает (таймер не нужен)
 func (m model) Init() tea.Cmd { return nil }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -30,20 +29,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
-
-		// Вперед: Стрелка вправо или Пробел
 		case "right", " ":
 			if m.currStep < len(m.steps)-1 {
 				m.currStep++
 			}
-
-		// Назад: Стрелка влево
 		case "left":
 			if m.currStep > 0 {
 				m.currStep--
 			}
-
-		// Сброс: Клавиша "r" (reset)
 		case "r":
 			m.currStep = 0
 		}
@@ -61,7 +54,6 @@ func (m model) View() string {
 		}
 	}
 
-	// Вычисление масштаба
 	rangeX, rangeY := m.maxX-m.minX, m.maxY-m.minY
 	if rangeX == 0 {
 		rangeX = 1
@@ -77,7 +69,6 @@ func (m model) View() string {
 		scaleY = 2
 	}
 
-	// Связи
 	for _, link := range m.links {
 		p1, ok1 := m.rooms[link[0]]
 		p2, ok2 := m.rooms[link[1]]
@@ -86,9 +77,8 @@ func (m model) View() string {
 		}
 	}
 
-	// Позиции муравьев
 	antsInRooms := make(map[string]string)
-	movesInfo := "Начало (муравьи в старте)"
+	movesInfo := "Начало / Start (ants at start)"
 	if m.currStep < len(m.steps) && len(m.steps[m.currStep]) > 0 {
 		movesInfo = strings.Join(m.steps[m.currStep], " ")
 		for _, move := range m.steps[m.currStep] {
@@ -99,7 +89,6 @@ func (m model) View() string {
 		}
 	}
 
-	// Комнаты
 	for name, pos := range m.rooms {
 		x := (pos.X-m.minX)*scaleX + 2
 		y := (pos.Y-m.minY)*scaleY + 2
@@ -117,19 +106,19 @@ func (m model) View() string {
 	}
 
 	var out strings.Builder
-	out.WriteString("┌── LEM-IN ИНТЕРАКТИВНЫЙ ВИЗУАЛИЗАТОР ──────────────────┐\n")
-	out.WriteString(fmt.Sprintf("│ Шаг: %d/%d | [→/Space] Вперед | [←] Назад | [r] Сброс │\n", m.currStep+1, len(m.steps)))
-	out.WriteString("└────────────────────────────────────────────────────────┘\n")
+	out.WriteString("┌── LEM-IN INTERACTIVE VISUALIZER / ИНТЕРАКТИВНЫЙ ВИЗУАЛИЗАТОР ──┐\n")
+	out.WriteString(fmt.Sprintf("│ Шаг/Step: %d/%d | [→/Space] Next/Вперед | [←] Back/Назад | [r] Reset/Сброс │\n", m.currStep+1, len(m.steps)))
+	out.WriteString("└────────────────────────────────────────────────────────────────┘\n")
 
 	for _, row := range canvas {
 		out.WriteString(strings.TrimRight(strings.Join(row, ""), " ") + "\n")
 	}
 
-	out.WriteString("\n🎬 Перемещения на текущем шаге:\n")
+	out.WriteString("\n🎬 Moves on this step / Перемещения на шаге:\n")
 	out.WriteString("   " + movesInfo + "\n")
 
 	if m.currStep == len(m.steps)-1 {
-		out.WriteString("\n🏁 ФИНИШ! Все муравьи дома.")
+		out.WriteString("\n🏁 FINISH! All ants are home / ФИНИШ! Все муравьи дома.")
 	}
 
 	return out.String()
