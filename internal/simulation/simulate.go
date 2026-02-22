@@ -12,6 +12,7 @@ type Ant struct {
 	PathIndex int
 	Position  int
 	Path      []string
+	EndRoom   string
 }
 
 func Run(paths []solver.Path, distribution [][]int) []string {
@@ -20,12 +21,14 @@ func Run(paths []solver.Path, distribution [][]int) []string {
 	// Создаем муравьев
 	ants := make([]*Ant, 0)
 	for pathIdx, antIDs := range distribution {
+		endRoom := paths[pathIdx].Rooms[len(paths[pathIdx].Rooms)-1]
 		for _, antID := range antIDs {
 			ants = append(ants, &Ant{
 				ID:        antID,
 				PathIndex: pathIdx,
 				Position:  0,
 				Path:      paths[pathIdx].Rooms,
+				EndRoom:   endRoom,
 			})
 		}
 	}
@@ -35,68 +38,85 @@ func Run(paths []solver.Path, distribution [][]int) []string {
 		return ants[i].ID < ants[j].ID
 	})
 
-	// Для отладки
-	fmt.Println("\n=== НАЧАЛО СИМУЛЯЦИИ ===")
-	for i, path := range paths {
-		fmt.Printf("Путь %d: %v\n", i+1, path.Rooms)
-	}
-	fmt.Println("Распределение муравьев по путям:")
-	for i, antsOnPath := range distribution {
-		fmt.Printf("  Путь %d: муравьи %v\n", i+1, antsOnPath)
-	}
-	fmt.Println()
-
 	finished := make(map[int]bool)
-	totalFinished := 0
-	turn := 1
 
-	for totalFinished < len(ants) {
+	for {
+		allFinished := true
+		for _, ant := range ants {
+			if !finished[ant.ID] {
+				allFinished = false
+				break
+			}
+		}
+		if allFinished {
+			break
+		}
+
 		turnMoves := make([]string, 0)
 		occupied := make(map[string]bool)
-
-		// ВАЖНО: Сначала двигаем муравьев в порядке ИХ ID
-		// НЕ сортируем муравьев каждый ход - они уже отсортированы
+		usedTunnels := make(map[string]bool)
 
 		for _, ant := range ants {
 			if finished[ant.ID] {
 				continue
 			}
 
-			nextPos := ant.Position + 1
-			if nextPos >= len(ant.Path) {
+			if ant.Position == len(ant.Path)-1 {
 				finished[ant.ID] = true
-				totalFinished++
 				continue
 			}
 
-			nextRoom := ant.Path[nextPos]
+			currentRoom := ant.Path[ant.Position]
+			nextRoom := ant.Path[ant.Position+1]
 
-			// Проверяем, свободна ли комната
-			// Для end всегда свободно
-			if !occupied[nextRoom] || nextRoom == "end" {
-				ant.Position = nextPos
-				if nextRoom == "end" {
-					finished[ant.ID] = true
-					totalFinished++
-					turnMoves = append(turnMoves, fmt.Sprintf("L%d-end", ant.ID))
-				} else {
+			// Ключ туннеля
+			tunnelKey := currentRoom + "-" + nextRoom
+			if currentRoom > nextRoom {
+				tunnelKey = nextRoom + "-" + currentRoom
+			}
+
+			// Туннель уже использован?
+			if usedTunnels[tunnelKey] {
+				continue
+			}
+
+			// Выход в END (всегда можно, туннель только проверяем)
+			if nextRoom == ant.EndRoom {
+				ant.Position++
+				finished[ant.ID] = true
+				usedTunnels[tunnelKey] = true
+				turnMoves = append(turnMoves, fmt.Sprintf("L%d-%s", ant.ID, nextRoom))
+				continue
+			}
+
+			// Выход из старта
+			if ant.Position == 0 {
+				// Для выхода из старта проверяем только occupied (не willBeFree)
+				if !occupied[nextRoom] {
+					ant.Position++
 					occupied[nextRoom] = true
+					usedTunnels[tunnelKey] = true
 					turnMoves = append(turnMoves, fmt.Sprintf("L%d-%s", ant.ID, nextRoom))
 				}
+				continue
 			}
-			// Если комната занята, муравей просто ждет (не двигается в этом ходу)
+
+			// Обычное движение
+			if !occupied[nextRoom] {
+				ant.Position++
+				occupied[nextRoom] = true
+				usedTunnels[tunnelKey] = true
+				turnMoves = append(turnMoves, fmt.Sprintf("L%d-%s", ant.ID, nextRoom))
+			}
 		}
 
 		if len(turnMoves) > 0 {
-			// Сортируем ходы по ID муравья
 			sort.Slice(turnMoves, func(i, j int) bool {
 				id1 := extractID(turnMoves[i])
 				id2 := extractID(turnMoves[j])
 				return id1 < id2
 			})
-
 			moves = append(moves, strings.Join(turnMoves, " "))
-			turn++
 		}
 	}
 
