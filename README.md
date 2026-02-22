@@ -5,6 +5,8 @@
 
 The project is an efficient logistics manager for a digital ant farm. The program's task is to find the quickest way to move ants from the `##start` room to the `##end` room through a tangled network of tunnels.
 
+<br>
+
 ![Ant Farm Graph](map_preview.png)
 
 ## 🐜 Project Essence
