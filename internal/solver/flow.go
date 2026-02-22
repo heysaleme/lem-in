@@ -159,33 +159,24 @@ func generateCombinations(paths [][]string, k int) [][]Path {
 
 func distributeAntsRoundRobin(paths []Path, antCount int) [][]int {
 	distribution := make([][]int, len(paths))
+	for ant := 1; ant <= antCount; ant++ {
+		bestPathIdx := 0
+		// minTime — это время завершения: длина + сколько муравьев уже там
+		minTime := paths[0].Len + len(distribution[0])
 
-	if len(paths) == 0 {
-		return distribution
+		for i := 1; i < len(paths); i++ {
+			currentTime := paths[i].Len + len(distribution[i])
+			// Если время одинаковое, выбираем путь, который короче (он обычно раньше в списке)
+			if currentTime < minTime {
+				minTime = currentTime
+				bestPathIdx = i
+			} else if currentTime == minTime {
+				if paths[i].Len < paths[bestPathIdx].Len {
+					bestPathIdx = i
+				}
+			}
+		}
+		distribution[bestPathIdx] = append(distribution[bestPathIdx], ant)
 	}
-
-	fmt.Println("\n=== РАСПРЕДЕЛЕНИЕ МУРАВЬЕВ ПО КРУГУ ===")
-	fmt.Printf("Всего путей: %d, муравьев: %d\n", len(paths), antCount)
-
-	// Распределяем муравьев по кругу, НАЧИНАЯ С ПЕРВОГО ПУТИ
-	ant := 1
-	pathIndex := 0
-
-	for ant <= antCount {
-		distribution[pathIndex] = append(distribution[pathIndex], ant)
-		fmt.Printf("Муравей %2d -> путь %d (вторая комната: %s)\n",
-			ant, pathIndex+1, paths[pathIndex].Rooms[1])
-
-		pathIndex = (pathIndex + 1) % len(paths)
-		ant++
-	}
-
-	fmt.Println("\n=== ИТОГОВОЕ РАСПРЕДЕЛЕНИЕ ===")
-	for i, ants := range distribution {
-		fmt.Printf("Путь %d (вторая комната: %s): муравьи %v\n",
-			i+1, paths[i].Rooms[1], ants)
-	}
-	fmt.Println()
-
 	return distribution
 }

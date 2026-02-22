@@ -13,111 +13,89 @@ type Ant struct {
 	Position  int
 	Path      []string
 	EndRoom   string
+	Finished  bool
 }
 
 func Run(paths []solver.Path, distribution [][]int) []string {
 	var moves []string
 
-	// Создаем муравьев
+	// 1. Формируем очередь муравьев правильно.
+	// Вместо того чтобы брать всех муравьев пути 1, потом всех пути 2,
+	// мы берем первого муравья из каждого пути, потом второго и т.д.
 	ants := make([]*Ant, 0)
-	for pathIdx, antIDs := range distribution {
-		endRoom := paths[pathIdx].Rooms[len(paths[pathIdx].Rooms)-1]
-		for _, antID := range antIDs {
-			ants = append(ants, &Ant{
-				ID:        antID,
-				PathIndex: pathIdx,
-				Position:  0,
-				Path:      paths[pathIdx].Rooms,
-				EndRoom:   endRoom,
-			})
+	maxAntsInPath := 0
+	for _, d := range distribution {
+		if len(d) > maxAntsInPath {
+			maxAntsInPath = len(d)
 		}
 	}
 
-	// Сортируем по ID
-	sort.Slice(ants, func(i, j int) bool {
-		return ants[i].ID < ants[j].ID
-	})
-
-	finished := make(map[int]bool)
-
-	for {
-		allFinished := true
-		for _, ant := range ants {
-			if !finished[ant.ID] {
-				allFinished = false
-				break
+	for i := 0; i < maxAntsInPath; i++ {
+		for pathIdx := 0; pathIdx < len(distribution); pathIdx++ {
+			if i < len(distribution[pathIdx]) {
+				antID := distribution[pathIdx][i]
+				ants = append(ants, &Ant{
+					ID:        antID,
+					PathIndex: pathIdx,
+					Position:  0,
+					Path:      paths[pathIdx].Rooms,
+					EndRoom:   paths[pathIdx].Rooms[len(paths[pathIdx].Rooms)-1],
+					Finished:  false,
+				})
 			}
 		}
-		if allFinished {
-			break
-		}
+	}
 
+	for {
 		turnMoves := make([]string, 0)
 		occupied := make(map[string]bool)
 		usedTunnels := make(map[string]bool)
+		anyMoved := false
+
+		// 2. Сортируем: те, кто уже в пути и дальше всех, ходят первыми.
+		// Если позиция одинаковая (например, оба в старте), сохраняем порядок очереди.
+		sort.SliceStable(ants, func(i, j int) bool {
+			return ants[i].Position > ants[j].Position
+		})
 
 		for _, ant := range ants {
-			if finished[ant.ID] {
-				continue
-			}
-
-			if ant.Position == len(ant.Path)-1 {
-				finished[ant.ID] = true
+			if ant.Finished {
 				continue
 			}
 
 			currentRoom := ant.Path[ant.Position]
 			nextRoom := ant.Path[ant.Position+1]
 
-			// Ключ туннеля
 			tunnelKey := currentRoom + "-" + nextRoom
 			if currentRoom > nextRoom {
 				tunnelKey = nextRoom + "-" + currentRoom
 			}
 
-			// Туннель уже использован?
-			if usedTunnels[tunnelKey] {
-				continue
-			}
-
-			// Выход в END (всегда можно, туннель только проверяем)
-			if nextRoom == ant.EndRoom {
+			// Условие хода: туннель свободен И (комната свободна ИЛИ это финиш)
+			if !usedTunnels[tunnelKey] && (nextRoom == ant.EndRoom || !occupied[nextRoom]) {
 				ant.Position++
-				finished[ant.ID] = true
-				usedTunnels[tunnelKey] = true
 				turnMoves = append(turnMoves, fmt.Sprintf("L%d-%s", ant.ID, nextRoom))
-				continue
-			}
+				anyMoved = true
+				usedTunnels[tunnelKey] = true
 
-			// Выход из старта
-			if ant.Position == 0 {
-				// Для выхода из старта проверяем только occupied (не willBeFree)
-				if !occupied[nextRoom] {
-					ant.Position++
+				if nextRoom == ant.EndRoom {
+					ant.Finished = true
+				} else {
 					occupied[nextRoom] = true
-					usedTunnels[tunnelKey] = true
-					turnMoves = append(turnMoves, fmt.Sprintf("L%d-%s", ant.ID, nextRoom))
 				}
-				continue
-			}
-
-			// Обычное движение
-			if !occupied[nextRoom] {
-				ant.Position++
-				occupied[nextRoom] = true
-				usedTunnels[tunnelKey] = true
-				turnMoves = append(turnMoves, fmt.Sprintf("L%d-%s", ant.ID, nextRoom))
 			}
 		}
 
-		if len(turnMoves) > 0 {
-			sort.Slice(turnMoves, func(i, j int) bool {
-				id1 := extractID(turnMoves[i])
-				id2 := extractID(turnMoves[j])
-				return id1 < id2
-			})
-			moves = append(moves, strings.Join(turnMoves, " "))
+		if !anyMoved {
+			break
 		}
+
+		// Сортируем только для красивого вывода в консоль
+		sort.Slice(turnMoves, func(i, j int) bool {
+			return extractID(turnMoves[i]) < extractID(turnMoves[j])
+		})
+
+		moves = append(moves, strings.Join(turnMoves, " "))
 	}
 
 	return moves
