@@ -2,7 +2,6 @@ package solver
 
 import (
 	"errors"
-	"fmt"
 	"lem-in/internal/graph"
 	"sort"
 )
@@ -13,33 +12,21 @@ type Path struct {
 }
 
 func FindAllPaths(g *graph.Graph, antCount int) ([]Path, [][]int, error) {
-	// Находим ВСЕ возможные пути
 	allPaths := findAllPaths(g)
 	if len(allPaths) == 0 {
 		return nil, nil, errors.New("no path found")
 	}
 
-	// Выводим все найденные пути для отладки
-	fmt.Println("\n=== ВСЕ НАЙДЕННЫЕ ПУТИ (В ПОРЯДКЕ ОБНАРУЖЕНИЯ) ===")
-	for i, path := range allPaths {
-		fmt.Printf("Путь %d: %v (длина %d)\n", i+1, path, len(path)-1)
-	}
-
-	// Сортируем по длине, НО СОХРАНЯЕМ ПОРЯДОК для одинаковых длин
+	// Сортируем по длине
 	sort.SliceStable(allPaths, func(i, j int) bool {
 		return len(allPaths[i]) < len(allPaths[j])
 	})
 
-	// Выбираем непересекающиеся пути, СОХРАНЯЯ порядок
+	// Выбираем непересекающиеся оптимальные пути
 	optimalPaths := selectOptimalPathsByTime(allPaths, antCount)
 
-	fmt.Println("\n=== ВЫБРАННЫЕ ПУТИ (В ПОРЯДКЕ ОБНАРУЖЕНИЯ) ===")
-	for i, path := range optimalPaths {
-		fmt.Printf("Путь %d: %v (длина %d)\n", i+1, path.Rooms, path.Len)
-	}
-
-	// Распределяем муравьев
-	distribution := distributeAntsRoundRobin(optimalPaths, antCount)
+	// Распределяем муравьев (используем новую логику для порядка ID)
+	distribution := distributeAntsCorrectOrder(optimalPaths, antCount)
 
 	return optimalPaths, distribution, nil
 }
@@ -51,7 +38,7 @@ func findAllPaths(g *graph.Graph) [][]string {
 	dfs = func(current string, path []string, visited map[string]bool) {
 		if len(path) > 100 {
 			return
-		}
+		} // Ограничитель глубины
 
 		if current == g.End {
 			newPath := make([]string, len(path))
@@ -60,12 +47,10 @@ func findAllPaths(g *graph.Graph) [][]string {
 			return
 		}
 
-		// Перебираем соседей в том порядке, в котором они в графе
 		for _, neighbor := range g.AdjacencyList[current] {
 			if neighbor == g.Start {
 				continue
 			}
-
 			if !visited[neighbor] {
 				visited[neighbor] = true
 				dfs(neighbor, append(path, neighbor), visited)
@@ -77,7 +62,6 @@ func findAllPaths(g *graph.Graph) [][]string {
 	visited := make(map[string]bool)
 	visited[g.Start] = true
 	dfs(g.Start, []string{g.Start}, visited)
-
 	return paths
 }
 
@@ -89,28 +73,16 @@ func selectOptimalPathsByTime(paths [][]string, antCount int) []Path {
 	var bestCombination []Path
 	bestTime := int(^uint(0) >> 1)
 
-	// Пробуем разные комбинации
-	for numPaths := 1; numPaths <= 4 && numPaths <= len(paths); numPaths++ {
-		// Генерируем комбинации из numPaths путей
+	// Пробуем комбинации из разного количества путей
+	for numPaths := 1; numPaths <= len(paths); numPaths++ {
 		combinations := generateCombinations(paths, numPaths)
-
 		for _, combo := range combinations {
-			// Проверяем, можно ли использовать эти пути вместе
 			if !pathsCompatible(combo) {
 				continue
 			}
 
-			// Распределяем муравьев
-			distribution := distributeAntsRoundRobin(combo, antCount)
-
-			// Считаем время
-			maxTime := 0
-			for i, ants := range distribution {
-				time := combo[i].Len + len(ants) - 1
-				if time > maxTime {
-					maxTime = time
-				}
-			}
+			// Временный расчет времени для этой комбинации
+			maxTime := calculateMaxTime(combo, antCount)
 
 			if maxTime < bestTime {
 				bestTime = maxTime
@@ -118,8 +90,63 @@ func selectOptimalPathsByTime(paths [][]string, antCount int) []Path {
 			}
 		}
 	}
-
 	return bestCombination
+}
+
+func calculateMaxTime(paths []Path, antCount int) int {
+	counts := make([]int, len(paths))
+	for ant := 0; ant < antCount; ant++ {
+		bestIdx := 0
+		minT := paths[0].Len + counts[0]
+		for i := 1; i < len(paths); i++ {
+			if paths[i].Len+counts[i] < minT {
+				minT = paths[i].Len + counts[i]
+				bestIdx = i
+			}
+		}
+		counts[bestIdx]++
+	}
+
+	maxT := 0
+	for i := 0; i < len(paths); i++ {
+		if paths[i].Len+counts[i]-1 > maxT {
+			maxT = paths[i].Len + counts[i] - 1
+		}
+	}
+	return maxT
+}
+
+func distributeAntsCorrectOrder(paths []Path, antCount int) [][]int {
+	counts := make([]int, len(paths))
+	for ant := 0; ant < antCount; ant++ {
+		bestIdx := 0
+		minT := paths[0].Len + counts[0]
+		for i := 1; i < len(paths); i++ {
+			if paths[i].Len+counts[i] < minT {
+				minT = paths[i].Len + counts[i]
+				bestIdx = i
+			}
+		}
+		counts[bestIdx]++
+	}
+
+	distribution := make([][]int, len(paths))
+	currentAnt := 1
+	for {
+		added := false
+		for i := 0; i < len(paths); i++ {
+			if counts[i] > 0 {
+				distribution[i] = append(distribution[i], currentAnt)
+				counts[i]--
+				currentAnt++
+				added = true
+			}
+		}
+		if !added {
+			break
+		}
+	}
+	return distribution
 }
 
 func pathsCompatible(paths []Path) bool {
@@ -136,60 +163,19 @@ func pathsCompatible(paths []Path) bool {
 }
 
 func generateCombinations(paths [][]string, k int) [][]Path {
-	// Генерирует все combinations из k путей
 	var result [][]Path
 	var generate func(start int, current []Path)
-
 	generate = func(start int, current []Path) {
 		if len(current) == k {
-			result = append(result, current)
+			res := make([]Path, k)
+			copy(res, current)
+			result = append(result, res)
 			return
 		}
 		for i := start; i < len(paths); i++ {
-			newCurrent := make([]Path, len(current))
-			copy(newCurrent, current)
-			newCurrent = append(newCurrent, Path{Rooms: paths[i], Len: len(paths[i]) - 1})
-			generate(i+1, newCurrent)
+			generate(i+1, append(current, Path{Rooms: paths[i], Len: len(paths[i]) - 1}))
 		}
 	}
-
 	generate(0, []Path{})
 	return result
-}
-
-func distributeAntsRoundRobin(paths []Path, antCount int) [][]int {
-	// 1. Сначала просто считаем количество (емкость) для каждого пути
-	counts := make([]int, len(paths))
-	for ant := 0; ant < antCount; ant++ {
-		bestIdx := 0
-		minTime := paths[0].Len + counts[0]
-		for i := 1; i < len(paths); i++ {
-			if paths[i].Len+counts[i] < minTime {
-				minTime = paths[i].Len + counts[i]
-				bestIdx = i
-			}
-		}
-		counts[bestIdx]++
-	}
-
-	// 2. Теперь распределяем ID муравьев (1, 2, 3...) по этим путям
-	distribution := make([][]int, len(paths))
-	currentAnt := 1
-
-	// Распределяем "слоями", чтобы ID шли по порядку в каждом ходу
-	for {
-		movedInThisLayer := false
-		for i := 0; i < len(paths); i++ {
-			if counts[i] > 0 {
-				distribution[i] = append(distribution[i], currentAnt)
-				counts[i]--
-				currentAnt++
-				movedInThisLayer = true
-			}
-		}
-		if !movedInThisLayer {
-			break
-		}
-	}
-	return distribution
 }
