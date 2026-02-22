@@ -12,33 +12,31 @@ import (
 )
 
 func main() {
-	// Проверка аргументов
 	if len(os.Args) != 2 {
-		fmt.Println("ERROR: invalid data format")
+		fmt.Println("Usage: go run . <filename>")
 		return
 	}
 
-	// Парсим файл
+	// 1. Parsing / Парсинг
 	farm, err := parser.Parse(os.Args[1])
 	if err != nil {
-		fmt.Println("ERROR:", err)
+		fmt.Println(err)
 		return
 	}
 
-	// Строим граф
+	// 2. Graph Building / Построение графа
 	g := graph.Build(farm)
 
-	// Находим пути + распределение муравьёв
-	// Больше не передаем farm, только граф и количество муравьев
-	paths, assign, err := solver.FindAllPaths(g, farm.Ants)
+	// 3. Solving / Поиск путей и распределение
+	paths, distribution, err := solver.Solve(g, farm.Ants)
 	if err != nil {
-		fmt.Println("ERROR:", err)
+		fmt.Println("ERROR: invalid data format, no paths found")
 		return
 	}
 
-	// Симуляция
-	moves := simulation.Run(paths, assign)
+	// 4. Simulation / Симуляция движений
+	moves := simulation.Run(paths, distribution)
 
-	// Вывод
+	// 5. Output / Форматированный вывод
 	formatter.Print(farm.RawLines, moves)
 }
