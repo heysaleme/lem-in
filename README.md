@@ -1,30 +1,30 @@
-# Lem-in: Симуляция муравьиной фермы
+# Lem-in: Ant Farm Simulation
 
-Проект представляет собой эффективный менеджер логистики для цифровой муравьиной фермы. Задача программы — найти наиболее быстрый способ перевести  муравьев из комнаты `##start` в комнату `##end` по запутанной сети туннелей.
-
-<br>
-
-## 🐜 Суть проекта
-
-Представь, что у тебя есть карта комнат, соединенных туннелями. В каждой комнате одновременно может находиться только **один** муравей (кроме старта и финиша), а по каждому туннелю за один ход может пройти только один муравей.
-
-**Цель:** Вывести список ходов так, чтобы последний муравей оказался на финише за минимально возможное количество шагов.
+The project is an efficient logistics manager for a digital ant farm. The program's task is to find the quickest way to move ants from the `##start` room to the `##end` room through a tangled network of tunnels.
 
 <br>
 
-## Как запустить
+## 🐜 Project Essence
 
-Для работы программы необходим установленный [Go](https://go.dev/).
+Imagine you have a map of rooms connected by tunnels. Only **one** ant can be in each room at a time (except for start and finish), and only one ant can pass through each tunnel in a single turn.
 
-1. **Склонируйте репозиторий:**
+**Goal:** Output a list of moves such that the last ant reaches the finish in the minimum possible number of steps.
+
+<br>
+
+## How to Run
+
+To run the program, you need [Go](https://go.dev/) installed.
+
+1. **Clone the repository:**
 
 ```bash
-git clone <ссылка-на-ваш-репозиторий>
+git clone <your-repository-link>
 cd lem-in
 
 ```
 
-2. **Запустите программу с файлом карты:**
+2. **Run the program with a map file:**
 
 ```bash
 go run ./cmd/lem-in <exampleNN.txt>
@@ -33,98 +33,96 @@ go run ./cmd/lem-in <exampleNN.txt>
 
 <br>
 
-### 📺 Интерактивная визуализация (TUI)
+### 📺 Interactive Visualization (TUI)
 
-Для наглядного отображения работы алгоритма в терминале предусмотрен визуализатор. Он поддерживает ручное управление шагами.
+A visualizer is provided for a clear display of the algorithm's work in the terminal. It supports manual step control.
 
-**Запуск через конвейер (Pipe):**
+**Run via pipeline (Pipe):**
 
 ```bash
 go run ./cmd/lem-in <map.txt> | go run ./cmd/visualizer
 
 ```
 
-**Управление:**
+**Controls:**
 
-* **`→` / `Пробел**` — Следующий шаг (ход муравьев).
-* **`←`** — Предыдущий шаг (перемотка назад).
-* **`r`** — Сброс анимации в начало.
-* **`q`** — Выход из визуализатора.
+* **`→` / `Space**` — Next step (ants move).
+* **`←`** — Previous step (rewind).
+* **`r`** — Reset animation to the beginning.
+* **`q`** — Exit the visualizer.
 
 <br>
 
-### Пример вывода:
+### Output Example:
 
 ```text
 L1-t L2-h L3-o
 L1-E L2-A L3-o L4-t L5-h
 ...
 
-
 ```
 
-Где `L1-t` означает: Муравей №1 перешел в комнату `t`.
+Where `L1-t` means: Ant #1 moved to room `t`.
 
 <br>
 
-## Формат входных данных
+## Input Data Format
 
-Программа принимает текстовый файл, описывающий колонию. Формат строго определен:
+The program accepts a text file describing the colony. The format is strictly defined:
 
 ```text
-3           # Количество муравьев
-##start     # Команда: следующая строка — вход в муравейник
-1 23 3      # Название комнаты и её координаты (X Y)
-2 16 7      # Еще одна комната
-##end       # Команда: следующая строка — выход
-3 16 3      # Финальная комната
-1-2         # Связь (туннель) между комнатой 1 и 2
-2-3         # Связь между комнатой 2 и 3
-
+3           # Number of ants
+##start     # Command: the next line is the entrance to the anthill
+1 23 3      # Room name and its coordinates (X Y)
+2 16 7      # Another room
+##end       # Command: the next line is the exit
+3 16 3      # Final room
+1-2         # Connection (tunnel) between room 1 and 2
+2-3         # Connection between room 2 and 3
 
 ```
 
-**Требования к данным:**
+**Data Requirements:**
 
-* Названия комнат не могут начинаться с буквы `L` или символа `#`.
-* Координаты должны быть целыми числами.
-* Комнаты должны быть соединены туннелями, иначе муравьи не найдут выход.
-* Карта должна содержать ровно одну команду `##start` и одну `##end`.
+* Room names cannot start with the letter `L` or the `#` symbol.
+* Coordinates must be integers.
+* Rooms must be connected by tunnels, otherwise the ants will not find the exit.
+* The map must contain exactly one `##start` command and one `##end` command.
 
 <br>
 
-## Архитектура проекта
+## Project Architecture
 
 ```text
 lem-in/
 ├── cmd/
-│   ├── lem-in/          # Основная логика поиска путей.
-│   └── visualizer/      # Интерфейс для визуализации перемещений (TUI).
+│   ├── lem-in/          # Main pathfinding logic.
+│   └── visualizer/      # Interface for movement visualization (TUI).
 ├── internal/
-│   ├── models/          # Описывает общие структуры данных (`Ant`, `Room`, `Path`, `Farm`).
-│   ├── parser/          # Отвечает за чтение текстовых файлов и создание структуры фермы.
-│   ├── graph/           # Превращает текстовые данные в математический граф (список смежности).
-│   ├── solver/          # Использует алгоритмы поиска путей и комбинаторную логику.
-│   ├── simulation/      # Пошагово передвигает муравьев по выбранным путям.
-│   └── formatter/       # Выводит результат в консоль согласно требуемому формату.
-└── examples/            # Примеры для тестов
+│   ├── models/          # Describes general data structures (`Ant`, `Room`, `Path`, `Farm`).
+│   ├── parser/          # Responsible for reading text files and creating the primary farm structure.
+│   ├── graph/           # Turns text data into a mathematical graph (adjacency list).
+│   ├── solver/          # Uses pathfinding algorithms and combinatorial logic to choose the most efficient route.
+│   ├── simulation/      # Moves ants step-by-step along selected paths, ensuring they do not collide.
+│   └── formatter/       # Outputs the result to the console according to the required format.
+└── examples/            # Examples for tests
 
 ```
 
 <br>
 
-## Алгоритмическая логика
+## Algorithmic Logic
 
-1. **Recursive Path Discovery:** Используется глубокий поиск (DFS) с бэктрекингом для нахождения всех потенциальных маршрутов.
-2. **Disjoint Set Optimization:** Алгоритм фильтрует пути, создавая комбинации из непересекающихся узлов.
-3. **Time Complexity Prediction:** Применяется формула для распределения муравьев, чтобы минимизировать общее время ожидания в очереди.
-4. **Greedy Dispatching:** Распределение муравьев по путям происходит динамически — каждый следующий юнит выбирает маршрут с наименьшим временем выхода.
+1. **Recursive Path Discovery:** Depth-First Search (DFS) with backtracking is used to find all potential routes.
+2. **Disjoint Set Optimization:** The algorithm filters paths, creating combinations of non-overlapping nodes.
+3. **Time Complexity Prediction:** A formula is applied for ant distribution to minimize the total waiting time in the queue.
+4. **Greedy Dispatching:** Distribution of ants across paths occurs dynamically — each subsequent unit chooses the route with the shortest exit time.
 
 <br>
 
-## Технологии
+## Technologies
 
-* **Язык программирования:** Go (Golang)
-* **Библиотеки:** [Bubble Tea](https://github.com/charmbracelet/bubbletea) (для TUI визуализации).
-* **Алгоритмы:** Списки смежности, поиск в глубину (DFS), работа с непересекающимися множествами.
-* **Оптимизация:** Комбинаторный перебор, автоматическое масштабирование графа и математическое прогнозирование шагов.
+* **Programming Language:** Go (Golang)
+* **Libraries:** [Bubble Tea](https://github.com/charmbracelet/bubbletea) (for TUI visualization).
+* **Algorithms:** Adjacency lists, Depth-First Search (DFS), working with disjoint sets.
+* **Optimization:** Combinatorial brute force, automatic graph scaling, and mathematical step prediction.
