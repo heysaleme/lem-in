@@ -7,8 +7,6 @@ The project is an efficient logistics manager for a digital ant farm. The progra
 
 ![Ant Farm Graph](map_preview.png)
 
-<br>
-
 ## 🐜 Project Essence
 
 Imagine you have a map of rooms connected by tunnels. Only **one** ant can be in each room at a time (except for start and finish), and only one ant can pass through each tunnel in a single turn.
