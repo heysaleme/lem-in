@@ -1,5 +1,7 @@
 package parser
 
+//преобразует текстовый файл в структуру Farm
+
 import (
 	"bufio"
 	"fmt"

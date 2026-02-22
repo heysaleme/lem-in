@@ -1,5 +1,7 @@
 package graph
 
+//преобразует муравейник в граф - математическую структуру
+
 import (
 	"lem-in/internal/parser"
 	"strings"

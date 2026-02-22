@@ -2,10 +2,9 @@ package solver
 
 import (
 	"errors"
+	"fmt"
 	"lem-in/internal/graph"
-	"lem-in/internal/parser"
 	"sort"
-	"strings"
 )
 
 type Path struct {
@@ -13,43 +12,47 @@ type Path struct {
 	Len   int
 }
 
-func FindAllPaths(g *graph.Graph, farm *parser.Farm, antCount int) ([]Path, [][]int, error) {
-	// Находим ВСЕ возможные пути, учитывая порядок комнат из файла
-	allPaths := findAllPathsInOrder(g, farm)
+func FindAllPaths(g *graph.Graph, antCount int) ([]Path, [][]int, error) {
+	// Находим ВСЕ возможные пути
+	allPaths := findAllPaths(g)
 	if len(allPaths) == 0 {
 		return nil, nil, errors.New("no path found")
 	}
 
-	// Сортируем пути по длине, но сохраняем относительный порядок для равных длин
+	// Выводим все найденные пути для отладки
+	fmt.Println("\n=== ВСЕ НАЙДЕННЫЕ ПУТИ (В ПОРЯДКЕ ОБНАРУЖЕНИЯ) ===")
+	for i, path := range allPaths {
+		fmt.Printf("Путь %d: %v (длина %d)\n", i+1, path, len(path)-1)
+	}
+
+	// Сортируем по длине, НО СОХРАНЯЕМ ПОРЯДОК для одинаковых длин
 	sort.SliceStable(allPaths, func(i, j int) bool {
 		return len(allPaths[i]) < len(allPaths[j])
 	})
 
-	// Находим оптимальные пути
-	optimalPaths := findOptimalPaths(allPaths)
+	// Выбираем непересекающиеся пути, СОХРАНЯЯ порядок
+	optimalPaths := selectOptimalPathsByTime(allPaths, antCount)
+
+	fmt.Println("\n=== ВЫБРАННЫЕ ПУТИ (В ПОРЯДКЕ ОБНАРУЖЕНИЯ) ===")
+	for i, path := range optimalPaths {
+		fmt.Printf("Путь %d: %v (длина %d)\n", i+1, path.Rooms, path.Len)
+	}
 
 	// Распределяем муравьев
-	distribution := distributeAnts(optimalPaths, antCount)
+	distribution := distributeAntsRoundRobin(optimalPaths, antCount)
 
 	return optimalPaths, distribution, nil
 }
 
-func findAllPathsInOrder(g *graph.Graph, farm *parser.Farm) [][]string {
+func findAllPaths(g *graph.Graph) [][]string {
 	var paths [][]string
 	var dfs func(current string, path []string, visited map[string]bool)
 
-	// Получаем порядок комнат из исходного файла
-	roomOrder := make(map[string]int)
-	for i, line := range farm.RawLines {
-		if !strings.Contains(line, "-") && !strings.HasPrefix(line, "#") && line != "" {
-			parts := strings.Fields(line)
-			if len(parts) == 3 {
-				roomOrder[parts[0]] = i
-			}
-		}
-	}
-
 	dfs = func(current string, path []string, visited map[string]bool) {
+		if len(path) > 100 {
+			return
+		}
+
 		if current == g.End {
 			newPath := make([]string, len(path))
 			copy(newPath, path)
@@ -57,16 +60,13 @@ func findAllPathsInOrder(g *graph.Graph, farm *parser.Farm) [][]string {
 			return
 		}
 
-		// Сортируем соседей в порядке появления в файле
-		neighbors := make([]string, len(g.AdjacencyList[current]))
-		copy(neighbors, g.AdjacencyList[current])
+		// Перебираем соседей в том порядке, в котором они в графе
+		for _, neighbor := range g.AdjacencyList[current] {
+			if neighbor == g.Start {
+				continue
+			}
 
-		sort.SliceStable(neighbors, func(i, j int) bool {
-			return roomOrder[neighbors[i]] < roomOrder[neighbors[j]]
-		})
-
-		for _, neighbor := range neighbors {
-			if !visited[neighbor] && neighbor != g.Start {
+			if !visited[neighbor] {
 				visited[neighbor] = true
 				dfs(neighbor, append(path, neighbor), visited)
 				delete(visited, neighbor)
@@ -81,166 +81,111 @@ func findAllPathsInOrder(g *graph.Graph, farm *parser.Farm) [][]string {
 	return paths
 }
 
-func findOptimalPaths(paths [][]string) []Path {
+func selectOptimalPathsByTime(paths [][]string, antCount int) []Path {
 	if len(paths) == 0 {
 		return nil
 	}
 
-	var selected []Path
-	usedRooms := make(map[string]bool)
+	var bestCombination []Path
+	bestTime := int(^uint(0) >> 1)
 
-	// Пути из примера (для этого конкретного графа)
-	expectedPaths := [][]string{
-		{"start", "t", "E", "a", "m", "end"},
-		{"start", "h", "A", "c", "k", "end"},
-		{"start", "0", "o", "n", "e", "end"},
-		{"start", "h", "n", "e", "end"},
-	}
+	// Пробуем разные комбинации
+	for numPaths := 1; numPaths <= 4 && numPaths <= len(paths); numPaths++ {
+		// Генерируем комбинации из numPaths путей
+		combinations := generateCombinations(paths, numPaths)
 
-	// Сначала ищем пути в ожидаемом порядке
-	for _, expected := range expectedPaths {
-		for _, path := range paths {
-			if slicesEqual(path, expected) {
-				selected = append(selected, Path{Rooms: path, Len: len(path) - 1})
-				for i := 1; i < len(path)-1; i++ {
-					usedRooms[path[i]] = true
+		for _, combo := range combinations {
+			// Проверяем, можно ли использовать эти пути вместе
+			if !pathsCompatible(combo) {
+				continue
+			}
+
+			// Распределяем муравьев
+			distribution := distributeAntsRoundRobin(combo, antCount)
+
+			// Считаем время
+			maxTime := 0
+			for i, ants := range distribution {
+				time := combo[i].Len + len(ants) - 1
+				if time > maxTime {
+					maxTime = time
 				}
-				break
+			}
+
+			if maxTime < bestTime {
+				bestTime = maxTime
+				bestCombination = combo
 			}
 		}
 	}
 
-	// Если не нашли все ожидаемые пути, добавляем оставшиеся из найденных
-	if len(selected) < len(expectedPaths) {
-		for _, path := range paths {
-			// Проверяем, не добавлен ли уже
-			alreadyAdded := false
-			for _, sp := range selected {
-				if slicesEqual(sp.Rooms, path) {
-					alreadyAdded = true
-					break
-				}
-			}
-
-			if !alreadyAdded {
-				// Проверяем пересечения
-				valid := true
-				for i := 1; i < len(path)-1; i++ {
-					if usedRooms[path[i]] {
-						valid = false
-						break
-					}
-				}
-
-				if valid || len(selected) < 2 {
-					selected = append(selected, Path{Rooms: path, Len: len(path) - 1})
-					for i := 1; i < len(path)-1; i++ {
-						usedRooms[path[i]] = true
-					}
-				}
-			}
-		}
-	}
-
-	return selected
+	return bestCombination
 }
 
-func distributeAnts(paths []Path, antCount int) [][]int {
-	distribution := make([][]int, len(paths))
-
-	// Специальное распределение для 10 муравьев по 4 путям
-	if antCount == 10 && len(paths) >= 3 {
-		// Сортируем пути по длине
-		sortedPaths := make([]Path, len(paths))
-		copy(sortedPaths, paths)
-		sort.Slice(sortedPaths, func(i, j int) bool {
-			return sortedPaths[i].Len < sortedPaths[j].Len
-		})
-
-		// Находим индексы путей в исходном порядке
-		pathIndices := make([]int, len(paths))
-		for i, path := range paths {
-			for j, sp := range sortedPaths {
-				if slicesEqual(path.Rooms, sp.Rooms) {
-					pathIndices[i] = j
-					break
-				}
+func pathsCompatible(paths []Path) bool {
+	used := make(map[string]bool)
+	for _, path := range paths {
+		for i := 1; i < len(path.Rooms)-1; i++ {
+			if used[path.Rooms[i]] {
+				return false
 			}
-		}
-
-		// Распределение как в примере
-		if len(paths) >= 3 {
-			// Путь t-E-a-m (обычно самый первый)
-			// Путь h-A-c-k (второй)
-			// Путь 0-o-n-e (третий)
-			// Путь h-n-e (четвертый)
-
-			// Определяем пути по их комнатам
-			for i, path := range paths {
-				if contains(path.Rooms, "t") && contains(path.Rooms, "E") && contains(path.Rooms, "a") && contains(path.Rooms, "m") {
-					distribution[i] = []int{1, 4, 7, 10}
-				} else if contains(path.Rooms, "h") && contains(path.Rooms, "A") && contains(path.Rooms, "c") && contains(path.Rooms, "k") {
-					distribution[i] = []int{2, 5, 8}
-				} else if contains(path.Rooms, "0") && contains(path.Rooms, "o") && contains(path.Rooms, "n") && contains(path.Rooms, "e") {
-					distribution[i] = []int{3, 6, 9}
-				} else {
-					distribution[i] = []int{}
-				}
-			}
-		}
-	} else {
-		// Универсальное распределение для других случаев
-		type PathQueue struct {
-			index    int
-			nextTime int
-			length   int
-		}
-
-		queues := make([]PathQueue, len(paths))
-		for i, path := range paths {
-			queues[i] = PathQueue{
-				index:    i,
-				nextTime: path.Len,
-				length:   path.Len,
-			}
-		}
-
-		for ant := 1; ant <= antCount; ant++ {
-			bestIdx := 0
-			bestTime := queues[0].nextTime
-
-			for i := 1; i < len(queues); i++ {
-				if queues[i].nextTime < bestTime {
-					bestTime = queues[i].nextTime
-					bestIdx = i
-				}
-			}
-
-			distribution[queues[bestIdx].index] = append(distribution[queues[bestIdx].index], ant)
-			queues[bestIdx].nextTime += 1
-		}
-	}
-
-	return distribution
-}
-
-func contains(slice []string, str string) bool {
-	for _, s := range slice {
-		if s == str {
-			return true
-		}
-	}
-	return false
-}
-
-func slicesEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
+			used[path.Rooms[i]] = true
 		}
 	}
 	return true
+}
+
+func generateCombinations(paths [][]string, k int) [][]Path {
+	// Генерирует все combinations из k путей
+	var result [][]Path
+	var generate func(start int, current []Path)
+
+	generate = func(start int, current []Path) {
+		if len(current) == k {
+			result = append(result, current)
+			return
+		}
+		for i := start; i < len(paths); i++ {
+			newCurrent := make([]Path, len(current))
+			copy(newCurrent, current)
+			newCurrent = append(newCurrent, Path{Rooms: paths[i], Len: len(paths[i]) - 1})
+			generate(i+1, newCurrent)
+		}
+	}
+
+	generate(0, []Path{})
+	return result
+}
+
+func distributeAntsRoundRobin(paths []Path, antCount int) [][]int {
+	distribution := make([][]int, len(paths))
+
+	if len(paths) == 0 {
+		return distribution
+	}
+
+	fmt.Println("\n=== РАСПРЕДЕЛЕНИЕ МУРАВЬЕВ ПО КРУГУ ===")
+	fmt.Printf("Всего путей: %d, муравьев: %d\n", len(paths), antCount)
+
+	// Распределяем муравьев по кругу, НАЧИНАЯ С ПЕРВОГО ПУТИ
+	ant := 1
+	pathIndex := 0
+
+	for ant <= antCount {
+		distribution[pathIndex] = append(distribution[pathIndex], ant)
+		fmt.Printf("Муравей %2d -> путь %d (вторая комната: %s)\n",
+			ant, pathIndex+1, paths[pathIndex].Rooms[1])
+
+		pathIndex = (pathIndex + 1) % len(paths)
+		ant++
+	}
+
+	fmt.Println("\n=== ИТОГОВОЕ РАСПРЕДЕЛЕНИЕ ===")
+	for i, ants := range distribution {
+		fmt.Printf("Путь %d (вторая комната: %s): муравьи %v\n",
+			i+1, paths[i].Rooms[1], ants)
+	}
+	fmt.Println()
+
+	return distribution
 }

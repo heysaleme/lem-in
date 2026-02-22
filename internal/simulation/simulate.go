@@ -11,22 +11,20 @@ type Ant struct {
 	ID        int
 	PathIndex int
 	Position  int
-	Finished  bool
 	Path      []string
 }
 
 func Run(paths []solver.Path, distribution [][]int) []string {
 	var moves []string
-	ants := make([]*Ant, 0)
 
 	// Создаем муравьев
+	ants := make([]*Ant, 0)
 	for pathIdx, antIDs := range distribution {
 		for _, antID := range antIDs {
 			ants = append(ants, &Ant{
 				ID:        antID,
 				PathIndex: pathIdx,
 				Position:  0,
-				Finished:  false,
 				Path:      paths[pathIdx].Rooms,
 			})
 		}
@@ -37,67 +35,56 @@ func Run(paths []solver.Path, distribution [][]int) []string {
 		return ants[i].ID < ants[j].ID
 	})
 
-	allFinished := false
-	for !allFinished {
-		allFinished = true
-		turnMoves := make([]string, 0)
+	// Для отладки
+	fmt.Println("\n=== НАЧАЛО СИМУЛЯЦИИ ===")
+	for i, path := range paths {
+		fmt.Printf("Путь %d: %v\n", i+1, path.Rooms)
+	}
+	fmt.Println("Распределение муравьев по путям:")
+	for i, antsOnPath := range distribution {
+		fmt.Printf("  Путь %d: муравьи %v\n", i+1, antsOnPath)
+	}
+	fmt.Println()
 
-		// Карта занятых комнат в этом ходу
+	finished := make(map[int]bool)
+	totalFinished := 0
+	turn := 1
+
+	for totalFinished < len(ants) {
+		turnMoves := make([]string, 0)
 		occupied := make(map[string]bool)
 
-		// Сначала определяем, кто куда пойдет
-		type move struct {
-			ant    *Ant
-			room   string
-			finish bool
-		}
-		possibleMoves := make([]move, 0)
+		// ВАЖНО: Сначала двигаем муравьев в порядке ИХ ID
+		// НЕ сортируем муравьев каждый ход - они уже отсортированы
 
 		for _, ant := range ants {
-			if ant.Finished {
+			if finished[ant.ID] {
 				continue
 			}
 
 			nextPos := ant.Position + 1
 			if nextPos >= len(ant.Path) {
-				ant.Finished = true
+				finished[ant.ID] = true
+				totalFinished++
 				continue
 			}
 
 			nextRoom := ant.Path[nextPos]
-			possibleMoves = append(possibleMoves, move{
-				ant:    ant,
-				room:   nextRoom,
-				finish: nextRoom == "end",
-			})
-		}
 
-		// Сортируем возможные ходы (сначала муравьи с меньшими ID)
-		sort.Slice(possibleMoves, func(i, j int) bool {
-			return possibleMoves[i].ant.ID < possibleMoves[j].ant.ID
-		})
-
-		// Выполняем ходы
-		for _, m := range possibleMoves {
 			// Проверяем, свободна ли комната
-			if !occupied[m.room] || m.finish {
-				m.ant.Position++
-				if m.finish {
-					m.ant.Finished = true
-					turnMoves = append(turnMoves, fmt.Sprintf("L%d-end", m.ant.ID))
+			// Для end всегда свободно
+			if !occupied[nextRoom] || nextRoom == "end" {
+				ant.Position = nextPos
+				if nextRoom == "end" {
+					finished[ant.ID] = true
+					totalFinished++
+					turnMoves = append(turnMoves, fmt.Sprintf("L%d-end", ant.ID))
 				} else {
-					occupied[m.room] = true
-					turnMoves = append(turnMoves, fmt.Sprintf("L%d-%s", m.ant.ID, m.room))
+					occupied[nextRoom] = true
+					turnMoves = append(turnMoves, fmt.Sprintf("L%d-%s", ant.ID, nextRoom))
 				}
 			}
-		}
-
-		// Проверяем, все ли закончили
-		for _, ant := range ants {
-			if !ant.Finished {
-				allFinished = false
-				break
-			}
+			// Если комната занята, муравей просто ждет (не двигается в этом ходу)
 		}
 
 		if len(turnMoves) > 0 {
@@ -107,7 +94,9 @@ func Run(paths []solver.Path, distribution [][]int) []string {
 				id2 := extractID(turnMoves[j])
 				return id1 < id2
 			})
+
 			moves = append(moves, strings.Join(turnMoves, " "))
+			turn++
 		}
 	}
 

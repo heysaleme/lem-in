@@ -28,8 +28,9 @@ func main() {
 	// Строим граф
 	g := graph.Build(farm)
 
-	// Находим пути + распределение муравьёв (передаем farm для порядка комнат)
-	paths, assign, err := solver.FindAllPaths(g, farm, farm.Ants)
+	// Находим пути + распределение муравьёв
+	// Больше не передаем farm, только граф и количество муравьев
+	paths, assign, err := solver.FindAllPaths(g, farm.Ants)
 	if err != nil {
 		fmt.Println("ERROR:", err)
 		return
